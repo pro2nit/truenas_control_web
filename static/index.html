@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>NAS Control</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">▰</span><span>NAS Control</span></div>
+      <nav aria-label="주요 메뉴">
+        <button class="nav-item is-active" type="button" data-page="dashboard"><span aria-hidden="true">⌂</span>대시보드</button>
+        <button class="nav-item" type="button" data-page="resources"><span aria-hidden="true">⌁</span>리소스 기록</button>
+        <button class="nav-item" type="button" data-page="schedules"><span aria-hidden="true">◷</span>예약 관리</button>
+        <button class="nav-item" type="button" data-page="history"><span aria-hidden="true">☷</span>실행 기록</button>
+        <button class="nav-item" type="button" data-page="settings"><span aria-hidden="true">⚙</span>설정</button>
+      </nav>
+      <div class="tailnet-label"><span class="status-dot"></span>Tailscale 전용</div>
+    </aside>
+
+    <main>
+      <header class="page-header">
+        <div><h1 id="page-title">대시보드</h1><p id="page-subtitle">TrueNAS 전원과 서비스 상태를 확인합니다.</p></div>
+        <button class="icon-button" type="button" id="refresh-button" aria-label="상태 새로고침">↻</button>
+      </header>
+
+      <div id="notice" class="notice" role="status" hidden></div>
+
+      <section class="page is-active" data-page-panel="dashboard">
+        <div class="status-grid">
+          <article class="panel device-panel">
+            <div class="device-heading">
+              <span class="device-icon" aria-hidden="true">▤</span>
+              <div><h2>TrueNAS</h2><p id="nas-status" class="state pending">상태 확인 중</p></div>
+            </div>
+            <div id="action-progress" class="action-progress" hidden>
+              <div class="spinner" aria-hidden="true"></div><span id="action-message">작업 준비 중</span>
+            </div>
+            <div class="actions">
+              <button class="button primary" type="button" id="wake-button">전원 켜기</button>
+              <button class="button danger" type="button" id="shutdown-button">안전하게 끄기</button>
+            </div>
+          </article>
+          <article class="panel service-panel">
+            <h2>서비스 점검</h2>
+            <ul class="check-list">
+              <li><span>네트워크 응답</span><strong data-check="ping">확인 중</strong></li>
+              <li><span>TrueNAS Web UI</span><strong data-check="web_ui">확인 중</strong></li>
+              <li><span>SMB 파일 공유</span><strong data-check="smb">확인 중</strong></li>
+              <li><span>추가 HTTP 서비스</span><strong data-check="nextcloud">확인 중</strong></li>
+            </ul>
+          </article>
+        </div>
+        <article class="panel resource-panel">
+          <div class="activity-heading">
+            <div><h2>스토리지와 리소스</h2><p>현재 사용량과 장치 온도를 확인합니다.</p></div>
+            <button class="button" type="button" data-page-link="resources">기록 그래프 보기</button>
+          </div>
+          <div class="resource-overview">
+            <div class="storage-overview">
+              <div id="storage-ring" class="storage-ring" style="--usage:0%"><div><strong id="storage-percent">—</strong><span>사용 중</span></div></div>
+              <div class="storage-copy"><strong id="storage-pool-name">스토리지</strong><span>총 <b id="storage-total">—</b></span><span>사용 <b id="storage-used">—</b> · 남음 <b id="storage-free">—</b></span></div>
+            </div>
+            <div class="resource-card"><span>CPU</span><strong id="cpu-current">—</strong><div class="meter"><i id="cpu-meter"></i></div><small id="cpu-detail">—</small></div>
+            <div class="resource-card"><span>메모리</span><strong id="memory-current">—</strong><div class="meter memory-meter"><i id="memory-other-meter"></i><i id="memory-arc-meter"></i></div><small id="memory-detail">—</small></div>
+            <div class="resource-card"><span>최고 온도</span><strong id="temperature-current">—</strong><div id="temperature-list" class="temperature-list"></div></div>
+          </div>
+        </article>
+        <article class="panel activity-panel">
+          <div class="activity-heading">
+            <div>
+              <h2>현재 활동</h2>
+              <p id="activity-updated">TrueNAS 활동을 확인하는 중입니다.</p>
+            </div>
+            <button class="button" type="button" id="activity-refresh-button">활동 새로고침</button>
+          </div>
+          <div class="activity-metrics" aria-label="현재 입출력 속도">
+            <div><span>디스크 읽기</span><strong id="disk-read-rate">—</strong></div>
+            <div><span>디스크 쓰기</span><strong id="disk-write-rate">—</strong></div>
+            <div><span>네트워크 받기</span><strong id="network-rx-rate">—</strong></div>
+            <div><span>네트워크 보내기</span><strong id="network-tx-rate">—</strong></div>
+          </div>
+          <div id="activity-summary" class="activity-summary"></div>
+          <div id="activity-list" class="activity-list"></div>
+          <p class="activity-note">이 정보는 종료 판단을 돕기 위한 참고용이며 종료를 자동으로 막지 않습니다. Time Machine은 열린 sparsebundle 파일을 기준으로 감지합니다. 파일이 열려 있어도 실제 복사가 잠시 멈춘 상태일 수 있으므로 네트워크와 디스크 사용량도 함께 확인하세요.</p>
+        </article>
+        <div class="section-heading"><h2>다가오는 예약</h2><button class="button" type="button" data-new-schedule>새 예약</button></div>
+        <div id="upcoming-schedules" class="schedule-list"></div>
+      </section>
+
+      <section class="page" data-page-panel="resources">
+        <div class="section-heading resource-history-heading">
+          <div><h2>리소스 기록</h2><p>1분 단위로 기록하며 최대 90일 동안 보관합니다.</p></div>
+          <div class="range-picker" role="group" aria-label="기록 조회 범위">
+            <button class="is-active" type="button" data-metric-range="24h">24시간</button>
+            <button type="button" data-metric-range="7d">7일</button>
+            <button type="button" data-metric-range="30d">30일</button>
+            <button type="button" data-metric-range="90d">90일</button>
+          </div>
+        </div>
+        <div id="peak-grid" class="peak-grid"></div>
+        <div class="chart-grid">
+          <article class="panel chart-panel"><div class="chart-heading"><h2>CPU · 메모리</h2><div><span class="legend cpu">CPU</span><span class="legend memory">전체 사용</span><span class="legend arc">ARC</span></div></div><svg id="resource-chart" class="metric-chart" viewBox="0 0 800 220" role="img" aria-label="CPU, 메모리 전체 사용률과 ARC 캐시 사용률 그래프"></svg></article>
+          <article class="panel chart-panel"><div class="chart-heading"><h2>온도</h2><div><span class="legend temperature">최고 온도</span><span class="legend cpu-temp">CPU</span></div></div><svg id="temperature-chart" class="metric-chart" viewBox="0 0 800 220" role="img" aria-label="온도 그래프"></svg></article>
+          <article class="panel chart-panel"><div class="chart-heading"><h2>네트워크</h2><div><span class="legend receive">받기</span><span class="legend send">보내기</span></div></div><svg id="network-chart" class="metric-chart" viewBox="0 0 800 220" role="img" aria-label="네트워크 처리량 그래프"></svg></article>
+          <article class="panel chart-panel"><div class="chart-heading"><h2>디스크 입출력</h2><div><span class="legend read">읽기</span><span class="legend write">쓰기</span></div></div><svg id="disk-chart" class="metric-chart" viewBox="0 0 800 220" role="img" aria-label="디스크 처리량 그래프"></svg></article>
+        </div>
+        <p id="metrics-note" class="metrics-note">기록을 불러오는 중입니다.</p>
+      </section>
+
+      <section class="page" data-page-panel="schedules">
+        <div class="section-heading"><div><h2>반복 예약</h2><p>서울 시간 기준으로 실행됩니다.</p></div><button class="button primary" type="button" data-new-schedule>새 예약</button></div>
+        <div id="all-schedules" class="schedule-list"></div>
+      </section>
+
+      <section class="page" data-page-panel="history">
+        <div class="panel table-wrap">
+          <table>
+            <thead><tr><th>시작 시각</th><th>동작</th><th>실행 방식</th><th>결과</th><th>소요 시간</th></tr></thead>
+            <tbody id="history-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="page" data-page-panel="settings">
+        <div class="settings-grid">
+          <article class="panel"><h2>NAS 연결</h2><dl id="nas-settings"></dl></article>
+          <article class="panel"><h2>접근 보안</h2><dl><div><dt>웹 서버</dt><dd>Tailscale IP 전용</dd></div><div><dt>접속 방식</dt><dd>로컬 포트 8787</dd></div><div><dt>Serve/Funnel</dt><dd>사용하지 않음</dd></div></dl></article>
+        </div>
+        <article id="setup-card" class="panel setup-card" hidden>
+          <h2>종료 기능 설정 필요</h2>
+          <p>TrueNAS의 HTTPS 인증서와 API 키를 설정하면 안전한 종료 버튼과 종료 예약을 사용할 수 있습니다. 자세한 명령은 프로젝트 README의 설치 안내를 확인하세요.</p>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="schedule-dialog">
+    <form method="dialog" id="schedule-form">
+      <div class="dialog-heading"><h2 id="schedule-dialog-title">새 예약</h2><button class="icon-button" value="cancel" aria-label="닫기">×</button></div>
+      <input type="hidden" id="schedule-id">
+      <label>예약 이름<input id="schedule-name" maxlength="80" required placeholder="예: 평일 아침 켜기"></label>
+      <div class="form-row">
+        <label>동작<select id="schedule-action"><option value="wake">NAS 켜기</option><option value="shutdown">NAS 안전하게 끄기</option></select></label>
+        <label>시간<input id="schedule-time" type="time" value="07:00" required></label>
+      </div>
+      <fieldset><legend>반복 요일</legend><div class="weekday-picker">
+        <label><input type="checkbox" value="0" checked><span>월</span></label><label><input type="checkbox" value="1" checked><span>화</span></label><label><input type="checkbox" value="2" checked><span>수</span></label><label><input type="checkbox" value="3" checked><span>목</span></label><label><input type="checkbox" value="4" checked><span>금</span></label><label><input type="checkbox" value="5" checked><span>토</span></label><label><input type="checkbox" value="6" checked><span>일</span></label>
+      </div></fieldset>
+      <label class="toggle-row"><input type="checkbox" id="schedule-enabled" checked>예약 활성화</label>
+      <div class="dialog-actions"><button class="button" value="cancel">취소</button><button class="button primary" type="submit" value="default">저장</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="shutdown-dialog">
+    <form method="dialog" id="shutdown-form">
+      <div class="dialog-heading"><h2>NAS를 끌까요?</h2><button class="icon-button" value="cancel" aria-label="닫기">×</button></div>
+      <p>위 대시보드의 현재 활동을 확인한 뒤 진행하세요. 이 버튼을 누르면 TrueNAS에 즉시 정상 종료를 요청합니다.</p>
+      <div class="dialog-actions"><button class="button" value="cancel">취소</button><button class="button danger" type="submit" value="default">안전하게 끄기</button></div>
+    </form>
+  </dialog>
+</body>
+</html>
