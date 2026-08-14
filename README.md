@@ -2,6 +2,8 @@
 
 TrueNAS SCALE을 안전하게 켜고 끄고, 반복 전원 일정을 관리하며, 스토리지와 시스템 활동을 확인하는 macOS용 자체 호스팅 웹 대시보드입니다.
 
+![NAS Control 리소스 모니터링 화면](docs/images/nas-control-preview.jpg)
+
 웹 서버는 설치 Mac의 **Tailscale IPv4 주소와 로컬 포트에만 바인딩**됩니다. Tailscale Serve와 Funnel을 사용하지 않으므로 공개 인터넷이나 일반 LAN 주소에서는 대시보드에 직접 접근할 수 없습니다.
 
 ## 주요 기능
